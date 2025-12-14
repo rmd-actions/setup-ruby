@@ -15,7 +15,7 @@ This action currently supports these versions of MRI, JRuby and TruffleRuby:
 
 | Interpreter | Versions |
 | ----------- | -------- |
-| `ruby` | 1.9.3, 2.0.0, 2.1.9, 2.2, all versions from 2.3.0 until 3.5.0-preview1, head, debug, mingw, mswin, ucrt |
+| `ruby` | 1.9.3, 2.0.0, 2.1.9, 2.2, all versions from 2.3.0 until 4.0.0-preview2, head, debug, mingw, mswin, ucrt |
 | `jruby` | 9.1.17.0 - 10.0.2.0, head |
 | `truffleruby` | 19.3.0 - 25.0.0, head |
 | `truffleruby+graalvm` | 21.2.0 - 25.0.0, head |
@@ -50,7 +50,7 @@ The action works on these [GitHub-hosted runners](https://docs.github.com/en/act
 | Operating System | Supported |
 | ---------------- | --------- |
 | Ubuntu  | `ubuntu-22.04`, `ubuntu-24.04`, `ubuntu-22.04-arm`, `ubuntu-24.04-arm` |
-| macOS   | `macos-13` and newer versions |
+| macOS   | `macos-14` and newer versions |
 | Windows | `windows-2022`, `windows-2025`, `windows-11-arm` |
 
 Not all combinations of runner images and versions are supported.

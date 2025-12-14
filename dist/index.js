@@ -81,17 +81,15 @@ async function installBundler(bundlerVersionInput, rubygemsInputSet, lockFile, p
     }
   }
 
-  const floatVersion = common.floatVersion(rubyVersion)
-
   if (bundlerVersion === 'default') {
-    if (common.isBundler2dot2Default(engine, rubyVersion)) {
+    if (common.isBundler2dot2PlusDefault(engine, rubyVersion)) {
       if (common.windows && engine === 'ruby' && (common.isStableVersion(engine, rubyVersion) || rubyVersion === 'head')) {
         // https://github.com/ruby/setup-ruby/issues/371
         console.log(`Installing latest Bundler for ${engine}-${rubyVersion} on Windows because bin/bundle does not work in bash otherwise`)
         bundlerVersion = 'latest'
       } else {
-        console.log(`Using Bundler 2 shipped with ${engine}-${rubyVersion}`)
-        return '2'
+        console.log(`Using Bundler shipped with ${engine}-${rubyVersion}`)
+        return common.isBundler4PlusDefault(engine, rubyVersion) ? '4' : '2'
       }
     } else if (common.hasBundlerDefaultGem(engine, rubyVersion)) {
       // Those Rubies have a old Bundler default gem < 2.2 which does not work well for `gem 'foo', github: 'foo/foo'`:
@@ -104,8 +102,15 @@ async function installBundler(bundlerVersionInput, rubygemsInputSet, lockFile, p
     }
   }
 
+  const targetRubyVersion = common.targetRubyVersion(engine, rubyVersion)
+
   if (bundlerVersion === 'latest') {
-    bundlerVersion = '2'
+    // Bundler 4 requires Ruby 3.2+
+    if (targetRubyVersion < 3.2) {
+      bundlerVersion = '2'
+    } else {
+      bundlerVersion = '4'
+    }
   }
 
   if (isValidBundlerVersion(bundlerVersion)) {
@@ -114,24 +119,29 @@ async function installBundler(bundlerVersionInput, rubygemsInputSet, lockFile, p
     throw new Error(`Cannot parse bundler input: ${bundlerVersion}`)
   }
 
-  // Use Bundler 1 when we know Bundler 2 does not work
-  if (bundlerVersion.startsWith('2')) {
-    if (engine === 'ruby' && floatVersion <= 2.2) {
-      console.log('Bundler 2 requires Ruby 2.3+, using Bundler 1 on Ruby <= 2.2')
+  // Only use Bundler 4 on Ruby 3.2+
+  if (common.floatVersion(bundlerVersion) >= 4 && targetRubyVersion < 3.2) {
+    console.log('Bundler 4 requires Ruby 3.2+, using Bundler 2 instead on Ruby < 3.2')
+    bundlerVersion = '2'
+  }
+
+  // Use Bundler 1 when we know Bundler 2+ does not work
+  if (common.floatVersion(bundlerVersion) >= 2) {
+    if (engine === 'ruby' && targetRubyVersion <= 2.2) {
+      console.log(`Bundler 2+ requires Ruby 2.3+, using Bundler 1 on Ruby <= 2.2`)
       bundlerVersion = '1'
     } else if (engine === 'ruby' && /^2\.3\.[01]/.test(rubyVersion)) {
       console.log('Ruby 2.3.0 and 2.3.1 have shipped with an old rubygems that only works with Bundler 1')
       bundlerVersion = '1'
     } else if (engine === 'jruby' && rubyVersion.startsWith('9.1')) { // JRuby 9.1 targets Ruby 2.3, treat it the same
-      console.log('JRuby 9.1 has a bug with Bundler 2 (https://github.com/ruby/setup-ruby/issues/108), using Bundler 1 instead on JRuby 9.1')
+      console.log('JRuby 9.1 has a bug with Bundler 2+ (https://github.com/ruby/setup-ruby/issues/108), using Bundler 1 instead on JRuby 9.1')
       bundlerVersion = '1'
     }
   }
 
-  const targetRubyVersion = common.targetRubyVersion(engine, rubyVersion)
   // Use Bundler 2.3 when we use Ruby 2.3.2 - 2.5
   // Use Bundler 2.4 when we use Ruby 2.6-2.7
-  if (bundlerVersion == '2') {
+  if (bundlerVersion === '2') {
     if (targetRubyVersion <= 2.5) { // < 2.3.2 already handled above
       console.log('Ruby 2.3.2 - 2.5 only works with Bundler 2.3')
       bundlerVersion = '2.3'
@@ -151,6 +161,14 @@ async function installBundler(bundlerVersionInput, rubygemsInputSet, lockFile, p
   return bundlerVersion
 }
 
+function bundlerConfigSetArgs(bundlerVersion, key, value) {
+  if (bundlerVersion.startsWith('1')) {
+    return ['config', '--local', key, value]
+  } else {
+    return ['config', 'set', '--local', key, value]
+  }
+}
+
 async function bundleInstall(gemfile, lockFile, platform, engine, rubyVersion, bundlerVersion, cacheVersion) {
   if (gemfile === null) {
     console.log('Could not determine gemfile path, skipping "bundle install" and caching')
@@ -158,8 +176,8 @@ async function bundleInstall(gemfile, lockFile, platform, engine, rubyVersion, b
   }
 
   let envOptions = {}
-  if (bundlerVersion.startsWith('1') && common.isBundler2Default(engine, rubyVersion)) {
-    // If Bundler 1 is specified on Rubies which ship with Bundler 2,
+  if (bundlerVersion.startsWith('1') && common.isBundler2PlusDefault(engine, rubyVersion)) {
+    // If Bundler 1 is specified on Rubies which ship with Bundler 2+,
     // we need to specify which Bundler version to use explicitly until the lockfile exists.
     console.log(`Setting BUNDLER_VERSION=${bundlerVersion} for "bundle config|lock" commands below to ensure Bundler 1 is used`)
     envOptions = { env: { ...process.env, BUNDLER_VERSION: bundlerVersion } }
@@ -170,10 +188,10 @@ async function bundleInstall(gemfile, lockFile, platform, engine, rubyVersion, b
   // An absolute path, so it is reliably under $PWD/vendor/bundle, and not relative to the gemfile's directory
   const bundleCachePath = path.join(process.cwd(), cachePath)
 
-  await exec.exec('bundle', ['config', '--local', 'path', bundleCachePath], envOptions)
+  await exec.exec('bundle', bundlerConfigSetArgs(bundlerVersion, 'path', bundleCachePath), envOptions)
 
   if (fs.existsSync(lockFile)) {
-    await exec.exec('bundle', ['config', '--local', 'deployment', 'true'], envOptions)
+    await exec.exec('bundle', bundlerConfigSetArgs(bundlerVersion, 'deployment', 'true'), envOptions)
   } else {
     // Generate the lockfile so we can use it to compute the cache key.
     // This will also automatically pick up the latest gem versions compatible with the Gemfile.
@@ -291,8 +309,9 @@ __nccwpck_require__.r(__webpack_exports__);
 /* harmony export */   hashFile: () => (/* binding */ hashFile),
 /* harmony export */   inputs: () => (/* binding */ inputs),
 /* harmony export */   isBundler1Default: () => (/* binding */ isBundler1Default),
-/* harmony export */   isBundler2Default: () => (/* binding */ isBundler2Default),
-/* harmony export */   isBundler2dot2Default: () => (/* binding */ isBundler2dot2Default),
+/* harmony export */   isBundler2PlusDefault: () => (/* binding */ isBundler2PlusDefault),
+/* harmony export */   isBundler2dot2PlusDefault: () => (/* binding */ isBundler2dot2PlusDefault),
+/* harmony export */   isBundler4PlusDefault: () => (/* binding */ isBundler4PlusDefault),
 /* harmony export */   isExactCacheKeyMatch: () => (/* binding */ isExactCacheKeyMatch),
 /* harmony export */   isHeadVersion: () => (/* binding */ isHeadVersion),
 /* harmony export */   isSelfHostedRunner: () => (/* binding */ isSelfHostedRunner),
@@ -325,6 +344,7 @@ const linuxOSInfo = __nccwpck_require__(962)
 const windows = (os.platform() === 'win32')
 // Extract to SSD on Windows, see https://github.com/ruby/setup-ruby/pull/14
 const drive = (windows ? (process.env['RUNNER_TEMP'] || 'C')[0] : undefined)
+const PATH_ENV_VAR = windows ? 'Path' : 'PATH'
 
 const inputs = {
   selfHosted: undefined
@@ -392,7 +412,7 @@ function isStableVersion(engine, rubyVersion) {
 }
 
 function hasBundlerDefaultGem(engine, rubyVersion) {
-  return isBundler1Default(engine, rubyVersion) || isBundler2Default(engine, rubyVersion)
+  return isBundler1Default(engine, rubyVersion) || isBundler2PlusDefault(engine, rubyVersion)
 }
 
 function isBundler1Default(engine, rubyVersion) {
@@ -407,7 +427,7 @@ function isBundler1Default(engine, rubyVersion) {
   }
 }
 
-function isBundler2Default(engine, rubyVersion) {
+function isBundler2PlusDefault(engine, rubyVersion) {
   if (engine === 'ruby') {
     return floatVersion(rubyVersion) >= 2.7
   } else if (engine.startsWith('truffleruby')) {
@@ -419,7 +439,7 @@ function isBundler2Default(engine, rubyVersion) {
   }
 }
 
-function isBundler2dot2Default(engine, rubyVersion) {
+function isBundler2dot2PlusDefault(engine, rubyVersion) {
   if (engine === 'ruby') {
     return floatVersion(rubyVersion) >= 3.0
   } else if (engine.startsWith('truffleruby')) {
@@ -429,6 +449,13 @@ function isBundler2dot2Default(engine, rubyVersion) {
   } else {
     return false
   }
+}
+
+const UNKNOWN_TARGET_RUBY_VERSION = 9.9
+
+function isBundler4PlusDefault(engine, rubyVersion) {
+  const version = targetRubyVersion(engine, rubyVersion)
+  return version != UNKNOWN_TARGET_RUBY_VERSION && version >= 4.0
 }
 
 function targetRubyVersion(engine, rubyVersion) {
@@ -444,6 +471,8 @@ function targetRubyVersion(engine, rubyVersion) {
       return 2.6
     } else if (version === 9.4) {
       return 3.1
+    } else if (version === 10.0) {
+      return 3.4
     }
   } else if (engine.startsWith('truffleruby')) {
     if (version < 21.0) {
@@ -459,11 +488,11 @@ function targetRubyVersion(engine, rubyVersion) {
     }
   }
 
-  return 9.9 // unknown, assume recent
+  return UNKNOWN_TARGET_RUBY_VERSION // unknown, assume recent
 }
 
 function floatVersion(rubyVersion) {
-  const match = rubyVersion.match(/^\d+\.\d+/)
+  const match = rubyVersion.match(/^\d+(\.\d+|$)/)
   if (match) {
     return parseFloat(match[0])
   } else if (isHeadVersion(rubyVersion)) {
@@ -668,23 +697,22 @@ function win2nix(path) {
 }
 
 function setupPath(newPathEntries) {
-  const envPath = windows ? 'Path' : 'PATH'
-  const originalPath = process.env[envPath].split(path.delimiter)
+  const originalPath = process.env[PATH_ENV_VAR].split(path.delimiter)
   let cleanPath = originalPath.filter(entry => !/\bruby\b/i.test(entry))
 
-  core.group(`Modifying ${envPath}`, async () => {
+  core.group(`Modifying ${PATH_ENV_VAR}`, async () => {
     // First remove the conflicting path entries
     if (cleanPath.length !== originalPath.length) {
-      console.log(`Entries removed from ${envPath} to avoid conflicts with default Ruby:`)
+      console.log(`Entries removed from ${PATH_ENV_VAR} to avoid conflicts with default Ruby:`)
       for (const entry of originalPath) {
         if (!cleanPath.includes(entry)) {
           console.log(`  ${entry}`)
         }
       }
-      core.exportVariable(envPath, cleanPath.join(path.delimiter))
+      core.exportVariable(PATH_ENV_VAR, cleanPath.join(path.delimiter))
     }
 
-    console.log(`Entries added to ${envPath} to use selected Ruby:`)
+    console.log(`Entries added to ${PATH_ENV_VAR} to use selected Ruby:`)
     for (const entry of newPathEntries) {
       console.log(`  ${entry}`)
     }
@@ -718,14 +746,17 @@ async function setupJavaHome(rubyPrefix) {
       // JAVA_HOME_21_X64 - https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md#java
       let newHomeVar = `JAVA_HOME_21_${arch}`
       let newHome = process.env[newHomeVar]
+      let bin = path.join(newHome, 'bin')
 
       if (newHome === "undefined") {
         throw new Error(`JAVA_HOME is not Java 21+ needed for JRuby and \$${newHomeVar} is not defined`)
       }
 
       console.log(`Setting JAVA_HOME to ${newHomeVar} path ${newHome}`)
-
       core.exportVariable("JAVA_HOME", newHome)
+
+      console.log(`Adding ${bin} to ${PATH_ENV_VAR}`)
+      core.addPath(bin)
     }
   })
 }
@@ -85153,7 +85184,7 @@ module.exports = /*#__PURE__*/JSON.parse('{"name":"@actions/cache","version":"4.
 /***/ ((module) => {
 
 "use strict";
-module.exports = /*#__PURE__*/JSON.parse('{"ruby":["1.9.3-p551","2.0.0-p648","2.1.9","2.2.10","2.3.0","2.3.1","2.3.2","2.3.3","2.3.4","2.3.5","2.3.6","2.3.7","2.3.8","2.4.0","2.4.1","2.4.2","2.4.3","2.4.4","2.4.5","2.4.6","2.4.7","2.4.9","2.4.10","2.5.0","2.5.1","2.5.2","2.5.3","2.5.4","2.5.5","2.5.6","2.5.7","2.5.8","2.5.9","2.6.0","2.6.1","2.6.2","2.6.3","2.6.4","2.6.5","2.6.6","2.6.7","2.6.8","2.6.9","2.6.10","2.7.0","2.7.1","2.7.2","2.7.3","2.7.4","2.7.5","2.7.6","2.7.7","2.7.8","3.0.0-preview1","3.0.0-preview2","3.0.0-rc1","3.0.0","3.0.1","3.0.2","3.0.3","3.0.4","3.0.5","3.0.6","3.0.7","3.1.0-preview1","3.1.0","3.1.1","3.1.2","3.1.3","3.1.4","3.1.5","3.1.6","3.1.7","3.2.0-preview1","3.2.0-preview2","3.2.0-preview3","3.2.0-rc1","3.2.0","3.2.1","3.2.2","3.2.3","3.2.4","3.2.5","3.2.6","3.2.7","3.2.8","3.2.9","3.3.0-preview1","3.3.0-preview2","3.3.0-preview3","3.3.0-rc1","3.3.0","3.3.1","3.3.2","3.3.3","3.3.4","3.3.5","3.3.6","3.3.7","3.3.8","3.3.9","3.3.10","3.4.0-preview1","3.4.0-preview2","3.4.0-rc1","3.4.0","3.4.1","3.4.2","3.4.3","3.4.4","3.4.5","3.4.6","3.4.7","3.5.0-preview1","head","debug","asan","3.4-asan"],"jruby":["9.1.17.0","9.2.9.0","9.2.10.0","9.2.11.0","9.2.11.1","9.2.12.0","9.2.13.0","9.2.14.0","9.2.15.0","9.2.16.0","9.2.17.0","9.2.18.0","9.2.19.0","9.2.20.0","9.2.20.1","9.2.21.0","9.3.0.0","9.3.1.0","9.3.2.0","9.3.3.0","9.3.4.0","9.3.6.0","9.3.7.0","9.3.8.0","9.3.9.0","9.3.10.0","9.3.11.0","9.3.13.0","9.3.14.0","9.3.15.0","9.4.0.0","9.4.1.0","9.4.2.0","9.4.3.0","9.4.4.0","9.4.5.0","9.4.6.0","9.4.7.0","9.4.8.0","9.4.9.0","9.4.10.0","9.4.11.0","9.4.12.0","9.4.12.1","9.4.13.0","9.4.14.0","10.0.0.0","10.0.0.1","10.0.1.0","10.0.2.0","head"],"truffleruby":["19.3.0","19.3.1","20.0.0","20.1.0","20.2.0","20.3.0","21.0.0","21.1.0","21.2.0","21.2.0.1","21.3.0","22.0.0.2","22.1.0","22.2.0","22.3.0","22.3.1","23.0.0-preview1","23.0.0","23.1.0","23.1.1","23.1.2","24.0.0","24.0.1","24.0.2","24.1.0","24.1.1","24.1.2","24.2.0","24.2.1","25.0.0","head"],"truffleruby+graalvm":["21.2.0","21.3.0","22.0.0.2","22.1.0","22.2.0","22.3.0","22.3.1","23.0.0-preview1","23.0.0","23.1.0","23.1.1","23.1.2","24.0.0","24.0.1","24.0.2","24.1.0","24.1.1","24.1.2","24.2.0","24.2.1","25.0.0","head"]}');
+module.exports = /*#__PURE__*/JSON.parse('{"ruby":["1.9.3-p551","2.0.0-p648","2.1.9","2.2.10","2.3.0","2.3.1","2.3.2","2.3.3","2.3.4","2.3.5","2.3.6","2.3.7","2.3.8","2.4.0","2.4.1","2.4.2","2.4.3","2.4.4","2.4.5","2.4.6","2.4.7","2.4.9","2.4.10","2.5.0","2.5.1","2.5.2","2.5.3","2.5.4","2.5.5","2.5.6","2.5.7","2.5.8","2.5.9","2.6.0","2.6.1","2.6.2","2.6.3","2.6.4","2.6.5","2.6.6","2.6.7","2.6.8","2.6.9","2.6.10","2.7.0","2.7.1","2.7.2","2.7.3","2.7.4","2.7.5","2.7.6","2.7.7","2.7.8","3.0.0-preview1","3.0.0-preview2","3.0.0-rc1","3.0.0","3.0.1","3.0.2","3.0.3","3.0.4","3.0.5","3.0.6","3.0.7","3.1.0-preview1","3.1.0","3.1.1","3.1.2","3.1.3","3.1.4","3.1.5","3.1.6","3.1.7","3.2.0-preview1","3.2.0-preview2","3.2.0-preview3","3.2.0-rc1","3.2.0","3.2.1","3.2.2","3.2.3","3.2.4","3.2.5","3.2.6","3.2.7","3.2.8","3.2.9","3.3.0-preview1","3.3.0-preview2","3.3.0-preview3","3.3.0-rc1","3.3.0","3.3.1","3.3.2","3.3.3","3.3.4","3.3.5","3.3.6","3.3.7","3.3.8","3.3.9","3.3.10","3.4.0-preview1","3.4.0-preview2","3.4.0-rc1","3.4.0","3.4.1","3.4.2","3.4.3","3.4.4","3.4.5","3.4.6","3.4.7","3.5.0-preview1","4.0.0-preview2","head","debug","asan","3.4-asan"],"jruby":["9.1.17.0","9.2.9.0","9.2.10.0","9.2.11.0","9.2.11.1","9.2.12.0","9.2.13.0","9.2.14.0","9.2.15.0","9.2.16.0","9.2.17.0","9.2.18.0","9.2.19.0","9.2.20.0","9.2.20.1","9.2.21.0","9.3.0.0","9.3.1.0","9.3.2.0","9.3.3.0","9.3.4.0","9.3.6.0","9.3.7.0","9.3.8.0","9.3.9.0","9.3.10.0","9.3.11.0","9.3.13.0","9.3.14.0","9.3.15.0","9.4.0.0","9.4.1.0","9.4.2.0","9.4.3.0","9.4.4.0","9.4.5.0","9.4.6.0","9.4.7.0","9.4.8.0","9.4.9.0","9.4.10.0","9.4.11.0","9.4.12.0","9.4.12.1","9.4.13.0","9.4.14.0","10.0.0.0","10.0.0.1","10.0.1.0","10.0.2.0","head"],"truffleruby":["19.3.0","19.3.1","20.0.0","20.1.0","20.2.0","20.3.0","21.0.0","21.1.0","21.2.0","21.2.0.1","21.3.0","22.0.0.2","22.1.0","22.2.0","22.3.0","22.3.1","23.0.0-preview1","23.0.0","23.1.0","23.1.1","23.1.2","24.0.0","24.0.1","24.0.2","24.1.0","24.1.1","24.1.2","24.2.0","24.2.1","25.0.0","head"],"truffleruby+graalvm":["21.2.0","21.3.0","22.0.0.2","22.1.0","22.2.0","22.3.0","22.3.1","23.0.0-preview1","23.0.0","23.1.0","23.1.1","23.1.2","24.0.0","24.0.1","24.0.2","24.1.0","24.1.1","24.1.2","24.2.0","24.2.1","25.0.0","head"]}');
 
 /***/ }),
 
@@ -85425,7 +85456,7 @@ function validateRubyEngineAndVersion(platform, engineVersions, engine, parsedVe
   // Well known version-platform combinations which do not work:
   if (engine === 'ruby' && platform.startsWith('macos') && os.arch() === 'arm64' && common.floatVersion(version) < 2.6) {
     throw new Error(`CRuby < 2.6 does not support macos-arm64.
-        Either use a newer Ruby version or use a macOS image running on amd64, e.g., macos-13.
+        Either use a newer Ruby version or use a macOS image running on amd64, e.g., macos-15-intel.
         Note that GitHub changed the meaning of macos-latest from macos-12 (amd64) to macos-14 (arm64):
         https://github.blog/changelog/2024-04-01-macos-14-sonoma-is-generally-available-and-the-latest-macos-runner-image/
 
@@ -85438,8 +85469,8 @@ function validateRubyEngineAndVersion(platform, engineVersions, engine, parsedVe
           - { os: macos-latest, ruby: '2.4' }
           - { os: macos-latest, ruby: '2.5' }
           include:
-          - { os: macos-13, ruby: '2.4' }
-          - { os: macos-13, ruby: '2.5' }
+          - { os: macos-15-intel, ruby: '2.4' }
+          - { os: macos-15-intel, ruby: '2.5' }
 
         But of course you should consider dropping support for these long-EOL Rubies, which cannot even be built on recent macOS machines.`)
   } else if (engine === 'truffleruby' && platform.startsWith('windows')) {
