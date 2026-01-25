@@ -16,7 +16,8 @@ export const drive = (windows ? (process.env['RUNNER_TEMP'] || 'C')[0] : undefin
 const PATH_ENV_VAR = windows ? 'Path' : 'PATH'
 
 export const inputs = {
-  selfHosted: undefined
+  selfHosted: undefined,
+  token: undefined
 }
 
 export function partition(string, separator) {
@@ -68,8 +69,8 @@ export async function time(name, block) {
 }
 
 export function isHeadVersion(rubyVersion) {
-  // 3.4-asan counts as "head" because the version cannot be selected -- you can only get whatever's latest
-  return ['head', 'debug',  'mingw', 'mswin', 'ucrt', 'asan', '3.4-asan'].includes(rubyVersion)
+  // asan-release counts as "head" because the version cannot be selected -- you can only get whatever's latest
+  return ['head', 'debug',  'mingw', 'mswin', 'ucrt', 'asan', 'asan-release'].includes(rubyVersion)
 }
 
 export function isStableVersion(engine, rubyVersion) {
@@ -440,4 +441,9 @@ export function isExactCacheKeyMatch(key, cacheKey) {
           sensitivity: 'accent'
       }) === 0
   );
+}
+
+export async function download(url) {
+  const auth = inputs.token ? `token ${inputs.token}` : undefined
+  return await tc.downloadTool(url, undefined, auth)
 }
