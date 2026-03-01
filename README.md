@@ -15,10 +15,10 @@ This action currently supports these versions of MRI, JRuby and TruffleRuby:
 
 | Interpreter | Versions |
 | ----------- | -------- |
-| `ruby` | 1.9.3, 2.0.0, 2.1.9, 2.2, all versions from 2.3.0 until 4.0.0, head, debug, mingw, mswin, ucrt |
-| `jruby` | 9.1.17.0 - 10.0.2.0, head |
-| `truffleruby` | 19.3.0 - 33.0.0, head |
-| `truffleruby+graalvm` | 21.2.0 - 33.0.0, head |
+| `ruby` | 1.9.3, 2.0.0, 2.1.9, 2.2, all versions from 2.3.0 until 4.0.1, head, debug, mingw, mswin, ucrt |
+| `jruby` | 9.1.17.0 - 10.0.3.0, head |
+| `truffleruby` | 19.3.0 - 33.0.1, head |
+| `truffleruby+graalvm` | 21.2.0 - 33.0.1, head |
 
 `ruby-debug` is the same as `ruby-head` but with assertions enabled (`-DRUBY_DEBUG=1`).
 
@@ -76,7 +76,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.4' # Not needed with a .ruby-version, .tool-versions or mise.toml
@@ -101,7 +101,7 @@ jobs:
         ruby: ['2.7', '3.0', '3.1', '3.2', '3.3', '3.4', head, jruby, jruby-head, truffleruby, truffleruby-head]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ matrix.ruby }}
@@ -124,7 +124,7 @@ jobs:
     env: # $BUNDLE_GEMFILE must be set at the job level, so it is set for all steps
       BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/${{ matrix.gemfile }}.gemfile
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4'
@@ -300,6 +300,7 @@ Please [update](https://github.com/ruby/setup-ruby/releases/tag/v1.13.0) if you 
 
 ## Credits
 
-The current maintainer of this action is @eregon.
+The creator of this action is @eregon.
+The current maintainers are @eregon @MSP-Greg @ntkme.
 Most of the Windows logic is based on work by MSP-Greg.
 Many thanks to MSP-Greg and Lars Kanis for the help with Ruby Installer.
