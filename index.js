@@ -219,8 +219,8 @@ function envPreInstall() {
   if (windows) {
     // puts normal Ruby temp folder on SSD
     core.exportVariable('TMPDIR', ENV['RUNNER_TEMP'])
-    // bash - sets home to match native windows, normally C:\Users\<user name>
-    core.exportVariable('HOME', ENV['HOMEDRIVE'] + ENV['HOMEPATH'])
+    // bash - sets home to match native windows
+    core.exportVariable('HOME', os.homedir())
     // bash - needed to maintain Path from Windows
     core.exportVariable('MSYS2_PATH_TYPE', 'inherit')
   }

@@ -15,8 +15,8 @@ This action currently supports these versions of MRI, JRuby and TruffleRuby:
 
 | Interpreter | Versions |
 | ----------- | -------- |
-| `ruby` | 1.9.3, 2.0.0, 2.1.9, 2.2, all versions from 2.3.0 until 4.0.1, head, debug, mingw, mswin, ucrt |
-| `jruby` | 9.1.17.0 - 10.0.3.0, head |
+| `ruby` | 1.9.3, 2.0.0, 2.1.9, 2.2, all versions from 2.3.0 until 4.0.2, head, debug, mingw, mswin, ucrt |
+| `jruby` | 9.1.17.0 - 10.0.4.0, head |
 | `truffleruby` | 19.3.0 - 33.0.1, head |
 | `truffleruby+graalvm` | 21.2.0 - 33.0.1, head |
 
@@ -257,8 +257,6 @@ It is recommended to first get your build working on Ubuntu and macOS before try
 * The `PATH` contains [multiple compiler toolchains](https://github.com/ruby/setup-ruby/issues/19). Use `where.exe` to debug which tool is used.
 * For Ruby ≥ 2.4, MSYS2 is prepended to the `Path`, similar to what RubyInstaller2 does.
 * For Ruby < 2.4, the DevKit MSYS tools are installed and prepended to the `Path`.
-* Use JRuby 9.2.20+ on Windows (older versions have [bugs](https://github.com/ruby/setup-ruby/issues/18#issuecomment-889072695)).
-* JRuby on Windows has multiple issues ([jruby/jruby#7106](https://github.com/jruby/jruby/issues/7106), [jruby/jruby#7182](https://github.com/jruby/jruby/issues/7182)).
 * When compiling extension code, note that the packages required to build Ruby are included when using Windows 2022. Additional packages can be installed with [setup-ruby-pkgs](https://github.com/ruby/setup-ruby-pkgs) or via MSYS2's `pacman`. These packages may be required when installing or updating Ruby stdlib extension gems.
 
 ## Versioning
