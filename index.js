@@ -196,6 +196,8 @@ function validateRubyEngineAndVersion(platform, engineVersions, engine, parsedVe
         But of course you should consider dropping support for these long-EOL Rubies, which cannot even be built on recent macOS machines.`)
   } else if (engine === 'truffleruby' && platform.startsWith('windows')) {
     throw new Error('TruffleRuby does not currently support Windows.')
+  } else if (engine === 'truffleruby' && platform.startsWith('macos') && os.arch() === 'x64' && common.floatVersion(version) >= 34.0) {
+    throw new Error('TruffleRuby 34+ no longer supports macOS Intel, please exclude that combination from CI.')
   }
 
   return version
@@ -219,8 +221,8 @@ function envPreInstall() {
   if (windows) {
     // puts normal Ruby temp folder on SSD
     core.exportVariable('TMPDIR', ENV['RUNNER_TEMP'])
-    // bash - sets home to match native windows, normally C:\Users\<user name>
-    core.exportVariable('HOME', ENV['HOMEDRIVE'] + ENV['HOMEPATH'])
+    // bash - sets home to match native windows
+    core.exportVariable('HOME', os.homedir())
     // bash - needed to maintain Path from Windows
     core.exportVariable('MSYS2_PATH_TYPE', 'inherit')
   }

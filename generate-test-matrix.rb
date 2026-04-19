@@ -34,7 +34,7 @@ macos_runners = runners.select { |runner| runner.start_with?('macos-') }
 ubuntu_runners = runners.select { |runner| runner.start_with?('ubuntu-') }
 windows_runners, non_windows_runners = runners.partition { |runner| runner.start_with?('windows-') }
 
-macos_arm64_runners, _macos_x64_runners = macos_runners.partition { |runner| !runner.end_with?('-intel')}
+macos_arm64_runners, macos_x64_runners = macos_runners.partition { |runner| !runner.end_with?('-intel')}
 ubuntu_arm64_runners, ubuntu_x64_runners = ubuntu_runners.partition { |runner| runner.end_with?('-arm')}
 windows_arm64_runners, windows_x64_runners = windows_runners.partition { |runner| runner.end_with?('-arm') }
 
@@ -53,7 +53,7 @@ matrix += runners.product(jruby_versions)
 
 # truffleruby: latest release + head
 truffleruby_versions = %w[truffleruby truffleruby-head truffleruby+graalvm truffleruby+graalvm-head]
-matrix += non_windows_runners.product(truffleruby_versions)
+matrix += (macos_arm64_runners + ubuntu_runners).product(truffleruby_versions)
 
 # ruby-loco: head
 ruby_loco_versions = %w[mingw mswin ucrt]
