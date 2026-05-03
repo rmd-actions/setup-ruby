@@ -15,10 +15,10 @@ This action currently supports these versions of MRI, JRuby and TruffleRuby:
 
 | Interpreter | Versions |
 | ----------- | -------- |
-| `ruby` | 1.9.3, 2.0.0, 2.1.9, 2.2, all versions from 2.3.0 until 4.0.1, head, debug, mingw, mswin, ucrt |
-| `jruby` | 9.1.17.0 - 10.0.4.0, head |
-| `truffleruby` | 19.3.0 - 33.0.1, head |
-| `truffleruby+graalvm` | 21.2.0 - 33.0.1, head |
+| `ruby` | 1.9.3, 2.0.0, 2.1.9, 2.2, all versions from 2.3.0 until 4.0.3, head, debug, mingw, mswin, ucrt |
+| `jruby` | 9.1.17.0 - 10.1.0.0, head |
+| `truffleruby` | 19.3.0 - 34.0.1, head |
+| `truffleruby+graalvm` | 21.2.0 - 34.0.1, head |
 
 `ruby-debug` is the same as `ruby-head` but with assertions enabled (`-DRUBY_DEBUG=1`).
 
@@ -79,7 +79,7 @@ jobs:
     - uses: actions/checkout@v6
     - uses: ruby/setup-ruby@v1
       with:
-        ruby-version: '3.4' # Not needed with a .ruby-version, .tool-versions or mise.toml
+        ruby-version: '4.0' # Not needed with a .ruby-version, .tool-versions or mise.toml
         bundler-cache: true # runs 'bundle install' and caches installed gems automatically
     - run: bundle exec rake
 ```
@@ -98,7 +98,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         # Due to https://github.com/actions/runner/issues/849, we have to use quotes for '3.0'
-        ruby: ['2.7', '3.0', '3.1', '3.2', '3.3', '3.4', head, jruby, jruby-head, truffleruby, truffleruby-head]
+        ruby: ['3.3', '3.4', '4.0', head, jruby, jruby-head, truffleruby, truffleruby-head]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v6
@@ -127,14 +127,14 @@ jobs:
       - uses: actions/checkout@v6
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.4'
+          ruby-version: '4.0'
           bundler-cache: true # runs 'bundle install' and caches installed gems automatically
       - run: bundle exec rake
 ```
 
 See the GitHub Actions documentation for more details about the
-[workflow syntax](https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions)
-and the [condition and expression syntax](https://help.github.com/en/actions/reference/context-and-expression-syntax-for-github-actions).
+[workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
+and the [condition and expression syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts).
 
 ### Supported Version Syntax
 
@@ -252,13 +252,11 @@ Note that running CI on Windows can be quite challenging if you are not very fam
 It is recommended to first get your build working on Ubuntu and macOS before trying Windows.
 
 * Use Bundler 2.2.18+ on Windows (older versions have [bugs](https://github.com/ruby/setup-ruby/issues/209#issuecomment-889064123)) by not setting the `bundler:` input and ensuring there is no `BUNDLED WITH 1.x.y` in a checked-in `Gemfile.lock`.
-* The default shell on Windows is not Bash but [PowerShell](https://help.github.com/en/actions/automating-your-workflow-with-github-actions/workflow-syntax-for-github-actions#using-a-specific-shell).
+* The default shell on Windows is not Bash but [PowerShell](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#using-a-specific-shell).
   This can lead issues such as multi-line scripts [not working as expected](https://github.com/ruby/setup-ruby/issues/13).
 * The `PATH` contains [multiple compiler toolchains](https://github.com/ruby/setup-ruby/issues/19). Use `where.exe` to debug which tool is used.
 * For Ruby ≥ 2.4, MSYS2 is prepended to the `Path`, similar to what RubyInstaller2 does.
 * For Ruby < 2.4, the DevKit MSYS tools are installed and prepended to the `Path`.
-* Use JRuby 9.2.20+ on Windows (older versions have [bugs](https://github.com/ruby/setup-ruby/issues/18#issuecomment-889072695)).
-* JRuby on Windows has multiple issues ([jruby/jruby#7106](https://github.com/jruby/jruby/issues/7106), [jruby/jruby#7182](https://github.com/jruby/jruby/issues/7182)).
 * When compiling extension code, note that the packages required to build Ruby are included when using Windows 2022. Additional packages can be installed with [setup-ruby-pkgs](https://github.com/ruby/setup-ruby-pkgs) or via MSYS2's `pacman`. These packages may be required when installing or updating Ruby stdlib extension gems.
 
 ## Versioning
